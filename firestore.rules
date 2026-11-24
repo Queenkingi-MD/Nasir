@@ -1,0 +1,241 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Core helper primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        ('email_verified' in request.auth.token &&
+         request.auth.token.email_verified == true &&
+         'email' in request.auth.token &&
+         request.auth.token.email == 'sanakhanjani412@gmail.com')
+      );
+    }
+
+    // Entity validators
+    function isValidUserProfile(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 40 &&
+             data.avatarKey in ['host', 'sana', 'ali', 'zoya'] &&
+             data.coins is int && data.coins >= 0 && data.coins <= 10000000 &&
+             data.diamonds is int && data.diamonds >= 0 && data.diamonds <= 10000000 &&
+             data.totalEarnedRs is int && data.totalEarnedRs >= 0 && data.totalEarnedRs <= 10000000 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidPartyRoom(data) {
+      return data.roomTitle is string && data.roomTitle.size() >= 2 && data.roomTitle.size() <= 50 &&
+             data.hostUid is string && data.hostUid.size() >= 1 && data.hostUid.size() <= 128 &&
+             data.hostName is string && data.hostName.size() >= 1 && data.hostName.size() <= 40 &&
+             data.roomStatus in ['LIVE', 'CLOSED'] &&
+             data.activeSpeakersCount is int && data.activeSpeakersCount >= 0 && data.activeSpeakersCount <= 8 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidSeat(data) {
+      return data.roomId is string && isValidId(data.roomId) &&
+             data.seatNumber is int && data.seatNumber >= 0 && data.seatNumber <= 7 &&
+             data.seatRole in ['HOST', 'GUEST'] &&
+             data.occupantUid is string && data.occupantUid.size() <= 128 &&
+             data.occupantName is string && data.occupantName.size() <= 40 &&
+             data.avatarKey in ['host', 'sana', 'ali', 'zoya', 'empty'] &&
+             data.micOn is bool &&
+             data.occupied is bool &&
+             data.diamondsReceived is int && data.diamondsReceived >= 0 && data.diamondsReceived <= 10000000 &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidChatMessage(data) {
+      return data.roomId is string && isValidId(data.roomId) &&
+             data.senderUid is string && data.senderUid.size() >= 1 && data.senderUid.size() <= 128 &&
+             data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 40 &&
+             data.senderAvatarKey in ['host', 'sana', 'ali', 'zoya'] &&
+             data.messageText is string && data.messageText.size() >= 1 && data.messageText.size() <= 240 &&
+             data.messageType in ['CHAT', 'GIFT', 'GAME', 'SYSTEM'] &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidWithdrawRequest(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.userName is string && data.userName.size() >= 1 && data.userName.size() <= 40 &&
+             data.method in ['EASYPAISA', 'JAZZCASH'] &&
+             data.accountNumber is string && data.accountNumber.matches('^03[0-9]{9}$') &&
+             data.coinsAmount is int && data.coinsAmount >= 1000 && data.coinsAmount <= 1000000 &&
+             data.rupeesAmount is int && data.rupeesAmount == data.coinsAmount &&
+             data.status in ['PENDING', 'APPROVED', 'REJECTED'] &&
+             (!('adminNote' in data) || (data.adminNote is string && data.adminNote.size() <= 120)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    // 1. User Profiles & Wallets (PII/balance isolation)
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+
+      allow create: if isSignedIn() &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().keys().hasAll(['userId', 'displayName', 'avatarKey', 'coins', 'diamonds', 'totalEarnedRs', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'displayName', 'avatarKey', 'coins', 'diamonds', 'totalEarnedRs', 'createdAt', 'updatedAt']) &&
+                       incoming().coins <= 2000 &&
+                       incoming().diamonds <= 500 &&
+                       incoming().totalEarnedRs == 0 &&
+                       isValidUserProfile(incoming());
+
+      allow update: if isSignedIn() &&
+                       isValidId(userId) &&
+                       isValidUserProfile(incoming()) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       (
+                         (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['coins', 'diamonds', 'totalEarnedRs', 'updatedAt'])) ||
+                         (
+                           request.auth.uid == userId &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'avatarKey', 'coins', 'diamonds', 'totalEarnedRs', 'updatedAt']) &&
+                           incoming().coins <= existing().coins + 5000 &&
+                           incoming().diamonds <= existing().diamonds + 5000
+                         )
+                       );
+
+      allow delete: if false;
+    }
+
+    // 2. Party Rooms
+    match /party_rooms/{roomId} {
+      allow get: if isSignedIn() && isValidId(roomId) && (existing().roomStatus == 'LIVE' || existing().hostUid == request.auth.uid);
+      allow list: if isSignedIn() && resource.data.roomStatus == 'LIVE';
+
+      allow create: if isSignedIn() &&
+                       isValidId(roomId) &&
+                       incoming().hostUid == request.auth.uid &&
+                       incoming().roomStatus == 'LIVE' &&
+                       incoming().keys().hasAll(['roomTitle', 'hostUid', 'hostName', 'roomStatus', 'activeSpeakersCount', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['roomTitle', 'hostUid', 'hostName', 'roomStatus', 'activeSpeakersCount', 'createdAt', 'updatedAt']) &&
+                       isValidPartyRoom(incoming());
+
+      allow update: if isSignedIn() &&
+                       isValidId(roomId) &&
+                       isValidPartyRoom(incoming()) &&
+                       incoming().hostUid == existing().hostUid &&
+                       incoming().createdAt == existing().createdAt &&
+                       (
+                         (existing().hostUid == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['roomTitle', 'roomStatus', 'activeSpeakersCount', 'updatedAt'])) ||
+                         (existing().roomStatus == 'LIVE' && incoming().diff(existing()).affectedKeys().hasOnly(['activeSpeakersCount', 'updatedAt']))
+                       );
+
+      allow delete: if false;
+
+      // 2a. 8 Circular Seats Subcollection
+      match /seats/{seatId} {
+        allow get: if isSignedIn() && isValidId(roomId) && isValidId(seatId) && exists(/databases/$(database)/documents/party_rooms/$(roomId));
+        allow list: if isSignedIn() && isValidId(roomId) && resource.data.roomId == roomId;
+
+        allow create: if isSignedIn() &&
+                         isValidId(roomId) &&
+                         isValidId(seatId) &&
+                         incoming().roomId == roomId &&
+                         incoming().keys().hasAll(['roomId', 'seatNumber', 'seatRole', 'occupantUid', 'occupantName', 'avatarKey', 'micOn', 'occupied', 'diamondsReceived', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['roomId', 'seatNumber', 'seatRole', 'occupantUid', 'occupantName', 'avatarKey', 'micOn', 'occupied', 'diamondsReceived', 'updatedAt']) &&
+                         isValidSeat(incoming()) &&
+                         (exists(/databases/$(database)/documents/party_rooms/$(roomId)) || existsAfter(/databases/$(database)/documents/party_rooms/$(roomId)));
+
+        allow update: if isSignedIn() &&
+                         isValidId(roomId) &&
+                         isValidId(seatId) &&
+                         isValidSeat(incoming()) &&
+                         incoming().roomId == existing().roomId &&
+                         incoming().seatNumber == existing().seatNumber &&
+                         incoming().seatRole == existing().seatRole &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['occupantUid', 'occupantName', 'avatarKey', 'micOn', 'occupied', 'diamondsReceived', 'updatedAt']) &&
+                         (
+                           (!existing().occupied && incoming().occupied && incoming().occupantUid == request.auth.uid) ||
+                           (existing().occupied && existing().occupantUid == request.auth.uid) ||
+                           (existing().occupied && incoming().diff(existing()).affectedKeys().hasOnly(['diamondsReceived', 'updatedAt']) && incoming().diamondsReceived >= existing().diamondsReceived) ||
+                           (get(/databases/$(database)/documents/party_rooms/$(roomId)).data.hostUid == request.auth.uid)
+                         );
+
+        allow delete: if false;
+      }
+
+      // 2b. Live Room Chat Messages Subcollection
+      match /messages/{messageId} {
+        allow get: if isSignedIn() && isValidId(roomId) && isValidId(messageId) && exists(/databases/$(database)/documents/party_rooms/$(roomId));
+        allow list: if isSignedIn() && isValidId(roomId) && resource.data.roomId == roomId;
+
+        allow create: if isSignedIn() &&
+                         isValidId(roomId) &&
+                         isValidId(messageId) &&
+                         incoming().roomId == roomId &&
+                         incoming().senderUid == request.auth.uid &&
+                         incoming().keys().hasAll(['roomId', 'senderUid', 'senderName', 'senderAvatarKey', 'messageText', 'messageType', 'createdAt']) &&
+                         incoming().keys().hasOnly(['roomId', 'senderUid', 'senderName', 'senderAvatarKey', 'messageText', 'messageType', 'createdAt']) &&
+                         isValidChatMessage(incoming()) &&
+                         (exists(/databases/$(database)/documents/party_rooms/$(roomId)) || existsAfter(/databases/$(database)/documents/party_rooms/$(roomId)));
+
+        allow update, delete: if false;
+      }
+    }
+
+    // 3. Withdrawal Requests (Easypaisa / JazzCash + Admin Approval)
+    match /withdraw_requests/{requestId} {
+      allow get: if isSignedIn() && isValidId(requestId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+
+      allow create: if isSignedIn() &&
+                       isValidId(requestId) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().status == 'PENDING' &&
+                       incoming().keys().hasAll(['userId', 'userName', 'method', 'accountNumber', 'coinsAmount', 'rupeesAmount', 'status', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'userName', 'method', 'accountNumber', 'coinsAmount', 'rupeesAmount', 'status', 'adminNote', 'createdAt', 'updatedAt']) &&
+                       isValidWithdrawRequest(incoming());
+
+      allow update: if isSignedIn() &&
+                       isValidId(requestId) &&
+                       isValidWithdrawRequest(incoming()) &&
+                       isAdmin() &&
+                       existing().status == 'PENDING' &&
+                       incoming().status in ['APPROVED', 'REJECTED'] &&
+                       incoming().userId == existing().userId &&
+                       incoming().userName == existing().userName &&
+                       incoming().method == existing().method &&
+                       incoming().accountNumber == existing().accountNumber &&
+                       incoming().coinsAmount == existing().coinsAmount &&
+                       incoming().rupeesAmount == existing().rupeesAmount &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['status', 'adminNote', 'updatedAt']);
+
+      allow delete: if false;
+    }
+
+    // 4. Admins Registry
+    match /admins/{adminUid} {
+      allow get: if isSignedIn() && isValidId(adminUid) && request.auth.uid == adminUid;
+      allow list, create, update, delete: if false;
+    }
+  }
+}

@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">Mehfil Party</string>
+    <string name="auth_title">Mehfil Party Room 🎉</string>
+    <string name="auth_subtitle">Doston ke sath live voice party, chat, tohfe aur Easypaisa / JazzCash kamai!</string>
+    <string name="auth_google_button">Google se Sign In Karein 🔐</string>
+    <string name="chat_placeholder">Apna paigham likhein...</string>
+    <string name="chat_send_btn">Bhejein 📤</string>
+    <string name="wallet_title">Mera Wallet 👛</string>
+    <string name="withdraw_title">Paisa Nikalwayein 💸</string>
+    <string name="min_withdraw_rule">Kam az kam 1000 Coins = 1000 Rs withdraw ho sakte hain</string>
+    <string name="admin_panel_title">Admin Panel (Manzoori) 🛡️</string>
+</resources>

@@ -1,0 +1,6 @@
+{
+  "name": "Mehfil Party",
+  "description": "Roman Urdu Party Room app with 8 voice seats, live chat, gifts, mini games, wallet, and Easypaisa/JazzCash withdrawals with admin approval.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

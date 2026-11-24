@@ -1,0 +1,121 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile and coin/diamond wallet balance.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID" },
+        "displayName": { "type": "string", "description": "Roman Urdu / display name" },
+        "avatarKey": { "type": "string", "enum": ["host", "sana", "ali", "zoya"] },
+        "coins": { "type": "integer", "description": "Withdrawable coins (1000 Coins = 1000 Rs)" },
+        "diamonds": { "type": "integer", "description": "Earned diamonds from gifts" },
+        "totalEarnedRs": { "type": "integer", "description": "Total approved PKR withdrawn" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp" }
+      },
+      "required": ["userId", "displayName", "avatarKey", "coins", "diamonds", "totalEarnedRs", "createdAt", "updatedAt"]
+    },
+    "PartyRoom": {
+      "title": "PartyRoom",
+      "description": "Gemgala-style voice party room with 8 circular seats.",
+      "type": "object",
+      "properties": {
+        "roomTitle": { "type": "string" },
+        "hostUid": { "type": "string" },
+        "hostName": { "type": "string" },
+        "roomStatus": { "type": "string", "enum": ["LIVE", "CLOSED"] },
+        "activeSpeakersCount": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["roomTitle", "hostUid", "hostName", "roomStatus", "activeSpeakersCount", "createdAt", "updatedAt"]
+    },
+    "RoomSeat": {
+      "title": "RoomSeat",
+      "description": "One of 8 circular seats (0 = Host, 1-7 = Guests).",
+      "type": "object",
+      "properties": {
+        "roomId": { "type": "string" },
+        "seatNumber": { "type": "integer" },
+        "seatRole": { "type": "string", "enum": ["HOST", "GUEST"] },
+        "occupantUid": { "type": "string" },
+        "occupantName": { "type": "string" },
+        "avatarKey": { "type": "string", "enum": ["host", "sana", "ali", "zoya", "empty"] },
+        "micOn": { "type": "boolean" },
+        "occupied": { "type": "boolean" },
+        "diamondsReceived": { "type": "integer" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["roomId", "seatNumber", "seatRole", "occupantUid", "occupantName", "avatarKey", "micOn", "occupied", "diamondsReceived", "updatedAt"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Live party room chat, gift, or mini-game message.",
+      "type": "object",
+      "properties": {
+        "roomId": { "type": "string" },
+        "senderUid": { "type": "string" },
+        "senderName": { "type": "string" },
+        "senderAvatarKey": { "type": "string", "enum": ["host", "sana", "ali", "zoya"] },
+        "messageText": { "type": "string" },
+        "messageType": { "type": "string", "enum": ["CHAT", "GIFT", "GAME", "SYSTEM"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["roomId", "senderUid", "senderName", "senderAvatarKey", "messageText", "messageType", "createdAt"]
+    },
+    "WithdrawRequest": {
+      "title": "WithdrawRequest",
+      "description": "Easypaisa or JazzCash withdrawal request (min 1000 Coins = 1000 Rs) requiring admin approval.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "method": { "type": "string", "enum": ["EASYPAISA", "JAZZCASH"] },
+        "accountNumber": { "type": "string" },
+        "coinsAmount": { "type": "integer" },
+        "rupeesAmount": { "type": "integer" },
+        "status": { "type": "string", "enum": ["PENDING", "APPROVED", "REJECTED"] },
+        "adminNote": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userName", "method", "accountNumber", "coinsAmount", "rupeesAmount", "status", "createdAt", "updatedAt"]
+    },
+    "AdminRecord": {
+      "title": "AdminRecord",
+      "description": "Trusted admin UID registry.",
+      "type": "object",
+      "properties": {
+        "role": { "type": "string" }
+      },
+      "required": ["role"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profiles and coin/diamond wallets."
+    },
+    "/party_rooms/{roomId}": {
+      "schema": { "$ref": "#/entities/PartyRoom" },
+      "description": "Live party rooms."
+    },
+    "/party_rooms/{roomId}/seats/{seatId}": {
+      "schema": { "$ref": "#/entities/RoomSeat" },
+      "description": "8 circular seats per party room (1 Host + 7 Guests)."
+    },
+    "/party_rooms/{roomId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatMessage" },
+      "description": "Real-time chat and gift/game feed in a party room."
+    },
+    "/withdraw_requests/{requestId}": {
+      "schema": { "$ref": "#/entities/WithdrawRequest" },
+      "description": "Easypaisa and JazzCash withdrawal requests pending admin approval."
+    },
+    "/admins/{adminUid}": {
+      "schema": { "$ref": "#/entities/AdminRecord" },
+      "description": "Admin role records."
+    }
+  }
+}
