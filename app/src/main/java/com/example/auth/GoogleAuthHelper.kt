@@ -136,12 +136,12 @@ fun GoogleSignInButton(
             )
         },
         enabled = !isLoading,
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(15.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = NeonMagenta,
+            containerColor = androidx.compose.ui.graphics.Color(0xFFFF2E7E),
             contentColor = TextPrimary
         ),
-        contentPadding = PaddingValues(vertical = 16.dp, horizontal = 24.dp),
+        contentPadding = PaddingValues(vertical = 15.dp, horizontal = 20.dp),
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
@@ -154,11 +154,11 @@ fun GoogleSignInButton(
                 strokeWidth = 2.5.dp
             )
             Spacer(Modifier.width(12.dp))
-            Text("Sign In ho raha hai...", fontWeight = FontWeight.Bold)
+            Text("Google Sign-In khul raha hai...", fontWeight = FontWeight.Bold)
         } else {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = stringResource(R.string.auth_google_button),
+                    text = "G  Google se Sign In Karein 🔐",
                     style = MaterialTheme.typography.titleMedium,
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Bold

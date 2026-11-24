@@ -1,6 +1,5 @@
 package com.example
 
-import android.app.Application
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -18,9 +17,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -32,6 +33,7 @@ import com.example.data.PartyRepository
 import com.example.ui.AdminApprovalScreen
 import com.example.ui.AppDestination
 import com.example.ui.AuthScreen
+import com.example.ui.DemoPartyViewModel
 import com.example.ui.LobbyScreen
 import com.example.ui.PartyRoomScreen
 import com.example.ui.PartyViewModel
@@ -60,13 +62,26 @@ class MainActivity : ComponentActivity() {
 fun AppNavigation() {
     val auth = Firebase.auth
     val currentUser by auth.authStateFlow().collectAsStateWithLifecycle(initialValue = auth.currentUser)
+    var isDemoMode by rememberSaveable { mutableStateOf(false) }
     val user = currentUser
 
-    if (user == null) {
-        AuthScreen(onAuthSuccess = { /* AuthStateListener updates currentUser automatically */ })
-    } else {
-        key(user.uid) {
-            AuthenticatedPartyRoot(currentUserId = user.uid)
+    when {
+        user != null -> {
+            isDemoMode = false
+            key(user.uid) {
+                AuthenticatedPartyRoot(currentUserId = user.uid)
+            }
+        }
+        isDemoMode -> {
+            key("demo_mode") {
+                DemoPartyRoot(onExitDemo = { isDemoMode = false })
+            }
+        }
+        else -> {
+            AuthScreen(
+                onAuthSuccess = { isDemoMode = false },
+                onGuestDemoLogin = { isDemoMode = true }
+            )
         }
     }
 }
@@ -172,27 +187,136 @@ private fun AuthenticatedPartyRoot(currentUserId: String) {
             }
         }
 
-        AnimatedVisibility(
-            visible = feedbackBanner != null,
-            enter = fadeIn(),
-            exit = fadeOut(),
+        FeedbackBannerOverlay(
+            feedbackBanner = feedbackBanner,
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .statusBarsPadding()
                 .padding(top = 56.dp, start = 16.dp, end = 16.dp)
-        ) {
-            feedbackBanner?.let { msg ->
-                Surface(
-                    color = GlassCardHighlight.copy(alpha = 0.96f),
-                    shape = RoundedCornerShape(16.dp),
-                    shadowElevation = 8.dp
-                ) {
-                    Text(
-                        text = msg,
-                        color = RoyalGold,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
-                    )
-                }
+        )
+    }
+}
+
+@Composable
+private fun DemoPartyRoot(onExitDemo: () -> Unit) {
+    val viewModel: DemoPartyViewModel = viewModel(key = "demo_party_vm")
+
+    val destination by viewModel.destination.collectAsStateWithLifecycle()
+    val activeRoomId by viewModel.activeRoomId.collectAsStateWithLifecycle()
+    val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
+    val rooms by viewModel.rooms.collectAsStateWithLifecycle()
+    val seats by viewModel.seats.collectAsStateWithLifecycle()
+    val messages by viewModel.messages.collectAsStateWithLifecycle()
+    val withdrawRequests by viewModel.withdrawRequests.collectAsStateWithLifecycle()
+    val feedbackBanner by viewModel.feedbackBanner.collectAsStateWithLifecycle()
+    val giftBanner by viewModel.giftBanner.collectAsStateWithLifecycle()
+    val micAudioLevel by viewModel.micAudioLevel.collectAsStateWithLifecycle()
+
+    val activeRoom = rooms.firstOrNull { it.id == activeRoomId }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        when (destination) {
+            AppDestination.PARTY_ROOM -> {
+                PartyRoomScreen(
+                    currentUserId = DemoPartyViewModel.DEMO_UID,
+                    userProfile = userProfile,
+                    activeRoom = activeRoom,
+                    seatsState = UiState.Success(seats),
+                    messagesState = UiState.Success(messages),
+                    giftBanner = giftBanner,
+                    micAudioLevel = micAudioLevel,
+                    isAdmin = true,
+                    isBusy = false,
+                    onSeatTap = { seatNum -> viewModel.sitOnSeat(seatNum) },
+                    onToggleMic = { hasPerm -> viewModel.toggleMic(hasPerm) },
+                    onSendChat = { msg -> viewModel.sendChat(msg) },
+                    onSendGift = { seat, gift -> viewModel.sendGift(seat, gift) },
+                    onReceiveAppreciationGift = { viewModel.triggerIncomingGiftFromRoom() },
+                    onSpinWheel = { bet, onResult -> viewModel.spinLuckyWheel(bet, onResult) },
+                    onLeaveRoom = { viewModel.leaveRoomToLobby() },
+                    onOpenLobby = { viewModel.navigateTo(AppDestination.LOBBY) },
+                    onOpenWallet = { viewModel.navigateTo(AppDestination.WALLET) },
+                    onOpenAdmin = { viewModel.navigateTo(AppDestination.ADMIN) }
+                )
+            }
+
+            AppDestination.LOBBY -> {
+                LobbyScreen(
+                    userProfile = userProfile,
+                    roomsState = UiState.Success(rooms),
+                    activeRoomId = activeRoomId,
+                    isAdmin = true,
+                    onJoinRoom = { roomId -> viewModel.enterRoom(roomId) },
+                    onCreateRoom = { title -> viewModel.createNewRoom(title) },
+                    onOpenWallet = { viewModel.navigateTo(AppDestination.WALLET) },
+                    onOpenAdmin = { viewModel.navigateTo(AppDestination.ADMIN) },
+                    onBackToRoom = { viewModel.navigateTo(AppDestination.PARTY_ROOM) },
+                    onExitSession = onExitDemo
+                )
+            }
+
+            AppDestination.WALLET -> {
+                WalletScreen(
+                    userProfile = userProfile,
+                    requestsState = UiState.Success(withdrawRequests),
+                    isBusy = false,
+                    isAdmin = true,
+                    onConvertDiamonds = { amount -> viewModel.convertDiamonds(amount) },
+                    onSubmitWithdraw = { method, num, amt, onDone ->
+                        viewModel.submitWithdraw(method, num, amt, onDone)
+                    },
+                    onOpenAdmin = { viewModel.navigateTo(AppDestination.ADMIN) },
+                    onBack = {
+                        viewModel.navigateTo(
+                            if (activeRoomId != null) AppDestination.PARTY_ROOM else AppDestination.LOBBY
+                        )
+                    }
+                )
+            }
+
+            AppDestination.ADMIN -> {
+                AdminApprovalScreen(
+                    requestsState = UiState.Success(withdrawRequests),
+                    isBusy = false,
+                    onApprove = { req -> viewModel.decideWithdrawRequest(req, true) },
+                    onReject = { req -> viewModel.decideWithdrawRequest(req, false) },
+                    onBack = { viewModel.navigateTo(AppDestination.WALLET) }
+                )
+            }
+        }
+
+        FeedbackBannerOverlay(
+            feedbackBanner = feedbackBanner,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(top = 56.dp, start = 16.dp, end = 16.dp)
+        )
+    }
+}
+
+@Composable
+private fun FeedbackBannerOverlay(
+    feedbackBanner: String?,
+    modifier: Modifier = Modifier
+) {
+    AnimatedVisibility(
+        visible = feedbackBanner != null,
+        enter = fadeIn(),
+        exit = fadeOut(),
+        modifier = modifier
+    ) {
+        feedbackBanner?.let { msg ->
+            Surface(
+                color = GlassCardHighlight.copy(alpha = 0.96f),
+                shape = RoundedCornerShape(16.dp),
+                shadowElevation = 8.dp
+            ) {
+                Text(
+                    text = msg,
+                    color = RoyalGold,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                )
             }
         }
     }

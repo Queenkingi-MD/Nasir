@@ -77,7 +77,8 @@ fun LobbyScreen(
     onCreateRoom: (String) -> Unit,
     onOpenWallet: () -> Unit,
     onOpenAdmin: () -> Unit,
-    onBackToRoom: () -> Unit
+    onBackToRoom: () -> Unit,
+    onExitSession: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -149,7 +150,11 @@ fun LobbyScreen(
                         modifier = Modifier
                             .border(1.dp, MicMutedRed.copy(alpha = 0.45f), RoundedCornerShape(50))
                             .clickable {
-                                signOut(credentialManager, scope)
+                                if (onExitSession != null) {
+                                    onExitSession()
+                                } else {
+                                    signOut(credentialManager, scope)
+                                }
                             }
                             .testTag("sign_out_button")
                     ) {

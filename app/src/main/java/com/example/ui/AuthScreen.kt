@@ -1,6 +1,8 @@
 package com.example.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -8,19 +10,25 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,7 +44,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -59,7 +70,8 @@ import com.example.ui.theme.TextSecondary
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AuthScreen(
-    onAuthSuccess: () -> Unit
+    onAuthSuccess: () -> Unit,
+    onGuestDemoLogin: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -71,7 +83,7 @@ fun AuthScreen(
             context = context,
             credentialManager = credentialManager,
             onAuthSuccess = onAuthSuccess,
-            onUnauthenticated = { /* Interactive Sign-In button remains visible */ },
+            onUnauthenticated = { /* Interactive Sign-In & Guest Demo buttons remain visible */ },
             scope = scope
         )
     }
@@ -110,18 +122,18 @@ fun AuthScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(horizontal = 24.dp, vertical = 24.dp)
+                .padding(horizontal = 24.dp, vertical = 20.dp)
                 .widthIn(max = 520.dp)
                 .align(Alignment.Center),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(6.dp))
 
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(
                     modifier = Modifier
-                        .size(104.dp)
+                        .size(96.dp)
                         .clip(CircleShape)
                         .background(
                             Brush.linearGradient(
@@ -131,10 +143,10 @@ fun AuthScreen(
                         .border(2.5.dp, RoyalGold, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(text = "👑🎤", fontSize = 38.sp)
+                    Text(text = "👑🎤", fontSize = 36.sp)
                 }
 
-                Spacer(Modifier.height(22.dp))
+                Spacer(Modifier.height(18.dp))
 
                 Text(
                     text = stringResource(R.string.auth_title),
@@ -143,7 +155,7 @@ fun AuthScreen(
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(8.dp))
 
                 Text(
                     text = stringResource(R.string.auth_subtitle),
@@ -152,11 +164,11 @@ fun AuthScreen(
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(18.dp))
 
                 FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     FeatureChip("🎤 8 Gol Seats", RoyalGold)
@@ -168,7 +180,7 @@ fun AuthScreen(
             }
 
             Surface(
-                color = GlassCardSurface.copy(alpha = 0.88f),
+                color = GlassCardSurface.copy(alpha = 0.90f),
                 shape = RoundedCornerShape(24.dp),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -178,21 +190,38 @@ fun AuthScreen(
                     modifier = Modifier.padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        text = "✨ Naye Account par 1,500 Coins Gift!",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = RoyalGold,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        text = "1000 Coins = 1000 Rs • Admin manzoori se foran paisa payein",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(Modifier.height(16.dp))
+                    // Starter Profile Preview Card ("Mehfil User" • 1500 Coins)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 14.dp)
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.img_avatar_sana_1795514874877),
+                            contentDescription = "Mehfil User",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(52.dp)
+                                .clip(CircleShape)
+                                .border(2.dp, Color(0xFFFF2E7E), CircleShape)
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Mehfil User ✨",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = TextPrimary,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "👛 Wallet: 1,500 Coins • 1000 Coins = 1000 Rs",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = RoyalGold
+                            )
+                        }
+                    }
 
                     authError?.let { msg ->
                         Surface(
@@ -211,6 +240,7 @@ fun AuthScreen(
                         }
                     }
 
+                    // Primary Google Sign-In Button
                     GoogleSignInButton(
                         onAuthSuccess = {
                             authError = null
@@ -218,6 +248,30 @@ fun AuthScreen(
                         },
                         onAuthError = { msg -> authError = msg }
                     )
+
+                    Spacer(Modifier.height(12.dp))
+
+                    // Guest / Demo Mode Button
+                    OutlinedButton(
+                        onClick = onGuestDemoLogin,
+                        shape = RoundedCornerShape(15.dp),
+                        border = BorderStroke(2.dp, Color(0xFFFF2E7E)),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color.White,
+                            contentColor = Color(0xFFFF2E7E)
+                        ),
+                        contentPadding = PaddingValues(vertical = 13.dp, horizontal = 20.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 52.dp)
+                            .testTag("guest_demo_login_button")
+                    ) {
+                        Text(
+                            text = "🎭 Guest / Demo se Andar Jao",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
